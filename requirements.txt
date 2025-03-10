@@ -1,0 +1,9 @@
+streamlit==1.39.0
+lightgbm
+joblib==1.4.2
+pandas==2.2.3
+numpy==2.1.2
+matplotlib==3.9.2
+scikit-learn==1.5.1
+firebase_admin
+
