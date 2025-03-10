@@ -1,17 +1,10 @@
 import streamlit as st
+import pandas as pd
 import pickle
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, roc_auc_score, roc_curve
-import firebase_admin
-from firebase_admin import credentials, auth
 from sklearn.model_selection import train_test_split
-
-# Initializing Firebase Admin SDK
-if not firebase_admin._apps:
-    cred = credentials.Certificate("cvdpredictor-4452f-firebase-adminsdk-fl22e-228ccf5239.json")
-    firebase_admin.initialize_app(cred)
 
 # Loading the saved LightGBM model
 with open('best_lightgbm_model.pkl', 'rb') as file:
@@ -19,27 +12,18 @@ with open('best_lightgbm_model.pkl', 'rb') as file:
 
 df = pd.read_csv('balanced_feature_selected.csv')
 
-# Authenticating functions
-def login_user(email, password):
-    try:
-        user = auth.get_user_by_email(email)
-        return user
-    except Exception as e:
-        st.error("Login failed. Please check your email or password.")
-        return None
-
-def signup_user(email, password, display_name):
-    try:
-        user = auth.create_user(email=email, password=password, display_name=display_name)
-        st.success("User created successfully! You can now log in.")
-        return user
-    except Exception as e:
-        st.error(f"Signup failed: {str(e)}")
-        return None
-
-# Session state to track login status
+# Session state to track login status and user information
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
+if 'user_email' not in st.session_state:
+    st.session_state['user_email'] = ''
+
+# Dummy user database
+user_db = {}
+
+# Function to validate email format
+def is_valid_email(email):
+    return '@' in email and '.' in email
 
 # Main Page
 if not st.session_state['logged_in']:
@@ -52,21 +36,27 @@ if not st.session_state['logged_in']:
         password = st.text_input("Password", type="password")
 
         if st.button("Login"):
-            user = login_user(email, password)
-            if user:
-                st.success(f"Welcome {user.display_name}!")
+            if is_valid_email(email):
                 st.session_state['logged_in'] = True
+                st.session_state['user_email'] = email
+                st.success(f"Welcome {email}!")
+            else:
+                st.error("Invalid email format. Please enter a valid email.")
 
     elif option == "Signup":
         st.title("Signup")
-        display_name = st.text_input("Display Name")
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
 
         if st.button("Signup"):
-            user = signup_user(email, password, display_name)
-            if user:
-                st.success("Signup successful! You can now log in.")
+            if is_valid_email(email):
+                if email not in user_db:
+                    user_db[email] = password  # Store user credentials
+                    st.success("Signup successful! You can now log in.")
+                else:
+                    st.warning("Email already registered. Please log in.")
+            else:
+                st.error("Invalid email format. Please enter a valid email.")
 
 # Main Application
 if st.session_state['logged_in']:
@@ -141,12 +131,8 @@ if st.session_state['logged_in']:
         st.text("Classification Report:")
         st.text(classification_report(y_test, y_pred))
 
-        st.subheader("Confusion Matrix Plot")
-       # Display Confusion Matrix as an Image
         st.subheader("Confusion Matrix")
         st.image("LightGBM Confusion Matrix.png", caption="Confusion Matrix", use_column_width=True)
-
-
 
         st.subheader("ROC Curve")
         fpr, tpr, _ = roc_curve(y_test, y_pred_proba)
